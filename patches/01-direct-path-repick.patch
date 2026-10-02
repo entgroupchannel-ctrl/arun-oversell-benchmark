@@ -1,0 +1,121 @@
+diff --git a/scripts/room-pick-race-check.mjs b/scripts/room-pick-race-check.mjs
+new file mode 100644
+index 00000000..ae04664d
+--- /dev/null
++++ b/scripts/room-pick-race-check.mjs
+@@ -0,0 +1,51 @@
++#!/usr/bin/env node
++/**
++ * ตรวจ "การหยิบห้องอัตโนมัติที่ทุกคำขอแย่งห้องเดียวกัน" (room-pick-race)
++ *
++ * ทำไม (2026-10-01): การทดลองยิงคำขอจองพร้อมกันพบว่า ทุกคำขอที่หยิบห้องด้วย
++ * `ORDER BY rm.room_number LIMIT 1` ได้ห้องเลขน้อยสุดห้องเดียวกัน → คนแพ้ชนข้อจำกัด
++ * reservations_no_room_overlap แล้วถูกปฏิเสธ (หรือถูกส่งให้พนักงานจัดห้องเอง) ทั้งที่ยังมีห้องว่าง
++ * ข้อจำกัดในฐานข้อมูลกันขายซ้ำได้ครบ แต่ "ขายไม่ได้ทั้งที่ควรขายได้" ทดสอบทีละรายการไม่มีทางเจอ
++ *
++ * กติกา: ทุกคิวรีที่หยิบห้องอัตโนมัติแบบ ORDER BY rm.room_number LIMIT 1 ต้องมีอย่างใดอย่างหนึ่ง
++ *   ✅ `FOR UPDATE OF rm SKIP LOCKED` ในคิวรีเดียวกับ INSERT (ภายใน 8 บรรทัดถัดไป)
++ *   ✅ ป้ายกำกับ `room-pick-race: re-pick` ในคิวรี (ไฟล์นั้นต้องหยิบห้องใหม่และลองบันทึกซ้ำเมื่อชน 23P01)
++ *   หรืออยู่ใน KNOWN พร้อมเหตุผลว่าทำไมยอมรับได้
++ *
++ * รัน: node scripts/room-pick-race-check.mjs   (exit 1 ถ้าพบจุดใหม่)
++ */
++import { readFileSync, readdirSync, statSync } from "node:fs";
++import { join } from "node:path";
++
++// จำนวนจุดที่ยอมรับได้ต่อไฟล์ — ถ้าไฟล์ไหนมีจุดไม่ป้องกันเพิ่มขึ้นจากนี้ ตัวตรวจจะตก
++const KNOWN = {
++  // ย้ายห้องตอนแก้ไขการจองจาก OTA (applyOtaBookingEvent) — การจองเดียวกันถูกประมวลผลทีละ revision
++  // และถ้าชนจะลดระดับเป็นอัปเดตแบบปลอดภัย + แจ้งพนักงาน (โซนอันตราย Channex — แก้ต้องผ่าน cert)
++  "server/utils/channex.ts": 1,
++  // อัปเกรดห้องของแขกที่เข้าพักอยู่แล้ว — ทำทีละราย ไม่มีคำขอพร้อมกันจากหลายช่องทาง
++  "server/utils/room-upgrade.ts": 1,
++  // พนักงานจองหลายห้องในใบเดียว — พนักงานเห็นผลทันทีและเลือกห้องใหม่ได้
++  "server/routes/api/reservations/multi.post.ts": 1,
++  // walk-in ที่ตู้ — มีคนยืนหน้าตู้ทีละคน
++  "server/routes/api/kiosk/walkin.post.ts": 1,
++};
++
++function walk(d, out = []) { for (const f of readdirSync(d)) { const p = join(d, f); statSync(p).isDirectory() ? walk(p, out) : f.endsWith(".ts") && out.push(p); } return out; }
++const PICK = /ORDER BY [^\n]*rm\.room_number LIMIT 1/;
++const fails = [];
++let guarded = 0;
++for (const file of walk("server")) {
++  const lines = readFileSync(file, "utf8").split("\n");
++  let open = 0;
++  lines.forEach((line, i) => {
++    if (!PICK.test(line)) return;
++    const after = lines.slice(i, i + 9).join("\n");
++    const around = lines.slice(Math.max(0, i - 4), i + 4).join("\n");
++    if (/SKIP LOCKED/.test(after) || /room-pick-race: re-pick/.test(around)) { guarded++; return; }
++    open++;
++    if (open > (KNOWN[file] ?? 0)) fails.push(`${file}:${i + 1}  หยิบห้องอัตโนมัติโดยไม่มี SKIP LOCKED / re-pick`);
++  });
++}
++console.log(`room-pick-race-check: ${fails.length ? "❌ " + fails.length + " จุด" : `✅ ไม่พบจุดใหม่ (ป้องกันแล้ว ${guarded} จุด)`}`);
++for (const f of fails) console.log("  " + f);
++if (fails.length) process.exit(1);
+diff --git a/server/routes/api/kiosk/book.post.ts b/server/routes/api/kiosk/book.post.ts
+index cdd9bb95..5cd3c41d 100644
+--- a/server/routes/api/kiosk/book.post.ts
++++ b/server/routes/api/kiosk/book.post.ts
+@@ -174,4 +174,6 @@ async function createBooking(event: H3Event, body: BookBody, idemKey: string | n
+   let roomId: number;
+   let roomNumber: string;
++  // ตัวเลือกห้องของโหมด "เลือกแค่ประเภทห้อง" — เก็บไว้เรียกซ้ำตอนแพ้การแย่งห้อง (ดูลูป INSERT ด้านล่าง)
++  let pickTypeRoom: ((exclude: number[], spread: boolean) => Promise<Array<{ id: number; room_number: string }>>) | null = null;
+   const guestPickedRoom = Number.isInteger(wantRoomId) && wantRoomId > 0; // layout mode → number always shown to this guest
+   if (guestPickedRoom) {
+@@ -226,5 +228,5 @@ async function createBooking(event: H3Event, body: BookBody, idemKey: string | n
+     if (!roomType) throw createError({ statusCode: 400, statusMessage: "กรุณาเลือกห้อง / Select a room" });
+     // Type mode — pick any genuinely free room of the requested type.
+-    const freeRooms = await sql`
++    pickTypeRoom = async (exclude: number[], spread: boolean) => (await sql`
+       SELECT rm.id, rm.room_number FROM rooms rm
+       -- 2026-08-29 fix: same missing-guards issue as the layout-mode query above —
+@@ -261,6 +263,10 @@ async function createBooking(event: H3Event, body: BookBody, idemKey: string | n
+         AND NOT EXISTS (SELECT 1 FROM room_blocks b WHERE b.room_id = rm.id AND b.released_at IS NULL
+           AND b.start_date < ${body.checkOut}::date AND b.end_date > ${body.checkIn}::date)
+-      ORDER BY rm.room_number LIMIT 1
+-    `;
++        -- ห้องที่เพิ่งแพ้การแย่งในคำขอนี้ ไม่หยิบซ้ำ (room-pick-race: re-pick)
++        AND NOT (rm.id = ANY(${exclude}::int[]))
++      -- ปกติเลือกห้องเลขน้อยสุดเหมือนเดิม · ตอนหยิบใหม่หลังแพ้ ให้สุ่ม เพื่อไม่ให้ทุกคำขอไปชนห้องเดียวกันอีก
++      ORDER BY CASE WHEN ${spread} THEN random() ELSE 0 END, rm.room_number LIMIT 1
++    `) as unknown as Array<{ id: number; room_number: string }>;
++    const freeRooms = await pickTypeRoom([], false);
+     if (!freeRooms.length) throw createError({ statusCode: 409, statusMessage: "ขออภัย ห้องประเภทนี้เต็มแล้วในช่วงที่เลือก / Sold out for these dates" });
+     roomId = Number(freeRooms[0].id);
+@@ -383,5 +389,14 @@ async function createBooking(event: H3Event, body: BookBody, idemKey: string | n
+   const cxPolicy = await policySnapshotForRoomType(roomType);
+ 
+-  let res: Awaited<ReturnType<typeof sql>>;
++  // ลูปกันการ "แพ้แล้วปฏิเสธทั้งที่ยังมีห้องว่าง" (2026-10-01)
++  // อาการ: แขกสองคนจองประเภทห้องเดียวกันพร้อมกัน ทั้งคู่ได้ห้องเลขน้อยสุดห้องเดียวกันจาก
++  // pickTypeRoom() → คนแพ้ถูกข้อจำกัด reservations_no_room_overlap ปฏิเสธ แล้วได้ 409
++  // ทั้งที่ห้องอื่นในประเภทเดียวกันยังว่าง (ทดลองยิงพร้อมกัน 10 คำขอ / 20 ห้อง เสียยอดขาย ~80%)
++  // แก้: โหมดเลือกประเภทห้อง → หยิบห้องว่างใหม่แบบสุ่ม (ไม่รวมห้องที่แพ้) แล้วลองใหม่ สูงสุด 5 ครั้ง
++  // โหมดเลือกห้องเอง (layout) → ห้องที่แขกเลือกถูกจองไปแล้วจริง ปฏิเสธเหมือนเดิม
++  // ข้อจำกัดในฐานข้อมูลยังเป็นด่านสุดท้ายกันขายซ้ำเหมือนเดิมทุกประการ
++  let res!: Awaited<ReturnType<typeof sql>>;
++  const lostRooms: number[] = [];
++  for (let attempt = 0; ; attempt++) {
+   try {
+     res = await sql`
+@@ -405,6 +420,14 @@ async function createBooking(event: H3Event, body: BookBody, idemKey: string | n
+     // loser gets a clear "sold out" instead of an unhandled 500 (which also
+     // released the idempotency key and let the retry race again).
+-    if (isRoomOverlapViolation(e)) throw createError({ statusCode: 409, statusMessage: "ห้องนี้เพิ่งถูกจองตัดหน้า กรุณาค้นหาใหม่อีกครั้ง / This room was just taken — please search again" });
+-    throw e;
++    if (!isRoomOverlapViolation(e)) throw e;
++    if (guestPickedRoom || !pickTypeRoom || attempt >= 4) throw createError({ statusCode: 409, statusMessage: "ห้องนี้เพิ่งถูกจองตัดหน้า กรุณาค้นหาใหม่อีกครั้ง / This room was just taken — please search again" });
++    lostRooms.push(roomId);
++    const again = await pickTypeRoom(lostRooms, true);
++    if (!again.length) throw createError({ statusCode: 409, statusMessage: "ขออภัย ห้องประเภทนี้เต็มแล้วในช่วงที่เลือก / Sold out for these dates" });
++    roomId = Number(again[0].id);
++    roomNumber = String(again[0].room_number);
++    continue;
++  }
++  break;
+   }
+   const reservationId = Number(res[0].id);

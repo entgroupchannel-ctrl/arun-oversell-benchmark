@@ -1,0 +1,23 @@
+diff --git a/server/utils/channex.ts b/server/utils/channex.ts
+index f04558f5..1f7fc9cd 100644
+--- a/server/utils/channex.ts
++++ b/server/utils/channex.ts
+@@ -2213,4 +2213,10 @@ async function insertOtaRoomReservation(
+             AND NOT EXISTS (SELECT 1 FROM room_holds h WHERE h.room_id = rm.id AND (h.expires_at > now() OR h.slip_url IS NOT NULL OR (h.deposit_amount IS NOT NULL AND h.deposit_paid = true)))
+           ORDER BY rm.room_number LIMIT 1
++          -- 2026-10-01 (room-pick-race): ล็อกแถวห้องที่หยิบ และข้ามห้องที่คำขออื่นกำลังล็อกอยู่
++          -- เดิมทุกการจองที่เข้ามาพร้อมกัน (webhook + pull cron + จองตรง) หยิบห้องเลขน้อยสุดห้องเดียวกัน
++          -- ชนข้อจำกัด reservations_no_room_overlap ทั้งกลุ่ม ลองใหม่ 3 รอบก็ยังชนกันเอง จนเกิด deadlock
++          -- และถูกส่งให้พนักงานจัดห้องเองทั้งที่มีห้องว่าง · SKIP LOCKED กระจายคำขอไปคนละห้อง
++          -- ส่วนข้อจำกัด EXCLUDE ยังเป็นด่านสุดท้ายกันขายซ้ำ (ปิดช่อง snapshot ของ Read Committed)
++          FOR UPDATE OF rm SKIP LOCKED
+         )
+         INSERT INTO reservations (guest_name, phone, check_in, check_out, room_id, price, adults, children, notes, status, source, payment_status, payment_model, ota_remittance_amount, payment_type_external, ota_booking_id, ota_revision_id, ota_room_uid, email)
+@@ -2224,4 +2230,7 @@ async function insertOtaRoomReservation(
+         const dup = await sql`SELECT id FROM reservations WHERE ota_booking_id = ${bookingId} AND ota_room_uid = ${stay.otaRoomUid || null} AND status <> 'cancelled' LIMIT 1`;
+         if (dup.length) return { reservationId: Number(dup[0].id), overbooking: false };
++        // 2026-10-01 (room-pick-race): SKIP LOCKED อาจเห็นว่า "ไม่มีห้อง" ชั่วขณะ เพราะห้องว่างที่เหลือ
++        // ถูกคำขออื่นล็อกอยู่ (แล้วคำขอนั้นอาจไม่ได้ห้องนั้นจริง) → รอสั้น ๆ แล้วดูอีกครั้งก่อนตัดสินว่าเต็ม
++        if (attempt < 2) { await new Promise((r) => setTimeout(r, 50)); continue; }
+         return { reservationId: null, overbooking: true };
+       }
