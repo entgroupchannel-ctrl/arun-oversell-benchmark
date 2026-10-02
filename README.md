@@ -11,6 +11,8 @@ number in the paper. It does **not** contain the source code of ARUN PMS itself,
 proprietary; the two code changes evaluated in the paper are included as minimal diffs
 under `patches/`.
 
+**คู่มือภาษาไทยฉบับละเอียด (ติดตั้ง รัน เทียบผล เพิ่มกลยุทธ์ของตนเอง): [README.th.md](README.th.md)**
+
 ## Contents
 
 | Path | What it is |
@@ -83,6 +85,10 @@ ARUN PMS repository. Only the changed hunks of the three affected files are publ
 | `patches/02-ota-path-skip-locked.patch` | `7088f672` (2026-10-01) | `server/utils/channex.ts` |
 
 The pre-improvement baseline is commit `144bbd5e` (2026-09-20).
+
+## Citation
+
+> Phanich, T. (2026). *arun-oversell-benchmark: concurrency benchmark for room-overselling safeguards* (v1.0). Zenodo. https://doi.org/10.5281/zenodo.23100060
 
 ## License
 
