@@ -93,7 +93,7 @@ The pre-improvement baseline is commit `144bbd5e` (2026-09-20).
 
 ## Citation
 
-> Phanich, T. (2026). *arun-oversell-benchmark: concurrency benchmark for room-overselling safeguards* (v1.0). Zenodo. https://doi.org/10.5281/zenodo.23100060
+> Phanich, T. (2026). *arun-oversell-benchmark: concurrency benchmark for room-overselling safeguards* (v1.1). Zenodo. https://doi.org/10.5281/zenodo.23113640 (v1.0 used in the paper: https://doi.org/10.5281/zenodo.23100060)
 
 ## License
 
