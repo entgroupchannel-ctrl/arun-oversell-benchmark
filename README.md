@@ -86,6 +86,11 @@ ARUN PMS repository. Only the changed hunks of the three affected files are publ
 
 The pre-improvement baseline is commit `144bbd5e` (2026-09-20).
 
+## Changelog
+
+* **v1.1 (2026-10-03)** — adds `docs/appendix-stats.md` (full Kruskal–Wallis / Mann–Whitney / Fisher tables with Holm-adjusted p, sensitivity to the adjustment method, and distribution diagnostics) and `README.th.md`. Data, scripts and `data/stats.json` are unchanged from v1.0; every number in the paper is still reproducible from the v1.0 tag.
+* **v1.0 (2026-10-02)** — benchmark scripts, raw results, analysis code and patches as used in the paper.
+
 ## Citation
 
 > Phanich, T. (2026). *arun-oversell-benchmark: concurrency benchmark for room-overselling safeguards* (v1.0). Zenodo. https://doi.org/10.5281/zenodo.23100060
