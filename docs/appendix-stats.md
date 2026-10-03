@@ -1,0 +1,79 @@
+# ภาคผนวกสถิติ (appendix-stats)
+
+ตารางต่อไปนี้แสดงผลที่คำนวณไว้แล้วใน `data/stats.json` รุ่น v1.0 ด้วย `analyze.py` ค่า p แสดงเป็นเลขยกกำลังจากไฟล์ต้นทาง (ปัดการแสดงผลเท่านั้น) และเพิ่มคอลัมน์ p ปรับด้วยวิธี Holm [Holm, 1979] ภายในกลุ่มตัวชี้วัดเดียวกัน (กลุ่มละ 3 การทดสอบ) ตามที่บทความระบุ
+
+All values below are read from `data/stats.json` (v1.0) produced by `analyze.py`. The Holm-adjusted p-values are computed within each metric family (3 tests each).
+
+## ตาราง 4 ผล Kruskal–Wallis ของ S1–S5 (กลุ่มละ 30 รอบในแต่ละ N)
+
+| ตัวชี้วัด | N | H | df | p ไม่ปรับ | η²_H |
+|---|---|---|---|---|---|
+| L | 10 | 58.19 | 4 | 6.950e-12 | 0.374 |
+| P95 | 10 | 90.07 | 4 | 1.273e-18 | 0.594 |
+| L | 50 | 52.14 | 4 | 1.289e-10 | 0.332 |
+| P95 | 50 | 97.86 | 4 | 2.806e-20 | 0.647 |
+| L | 200 | 56.33 | 4 | 1.709e-11 | 0.361 |
+| P95 | 200 | 97.68 | 4 | 3.070e-20 | 0.646 |
+| L | 1000 | 19.93 | 4 | 5.145e-04 | 0.110 |
+| P95 | 1000 | 36.04 | 4 | 2.844e-07 | 0.221 |
+
+หมายเหตุ: รวม R ตามการจัดสรรรอบเท่ากัน รวม S4 ซึ่งเกิดการขายเกินบางรอบ ฟิลด์ `eps2` ในไฟล์ต้นทางคงชื่อเดิม แต่คำนวณด้วยสูตร η²_H = (H − k + 1)/(n − k) [Tomczak & Tomczak, 2014] ตามสมการ (2) ในบทความ การทดสอบ Kruskal–Wallis ทั้ง 8 รายการเป็นการทดสอบรวม (omnibus) จึงไม่ปรับ Holm
+
+## ตาราง 5 ผล Mann–Whitney U และ Fisher’s exact test ตามแผนวิเคราะห์
+
+| วิธี | คู่เปรียบเทียบ | ตัวชี้วัด | U | p ไม่ปรับ | p ปรับ Holm | \|r_rb\| |
+|---|---|---|---|---|---|---|
+| Mann–Whitney | S2–S5 | L | 8880 | 2.111e-08 | 4.222e-08 | 0.233 |
+| Mann–Whitney | S1–S1′ | L | 11008 | 1.368e-19 | 4.103e-19 | 0.529 |
+| Mann–Whitney | S2–S2′ | L | 8880 | 2.111e-08 | 4.222e-08 | 0.233 |
+| Mann–Whitney | S2–S5 | P95 | 9173 | 2.445e-04 | 4.891e-04 | 0.274 |
+| Mann–Whitney | S1–S1′ | P95 | 5616 | 3.234e-03 | 3.234e-03 | 0.220 |
+| Mann–Whitney | S2–S2′ | P95 | 5002 | 4.383e-05 | 1.315e-04 | 0.305 |
+| Fisher exact | S4–S5 | รอบขายเกิน | — | 2.867e-09 | — | — |
+
+หมายเหตุ: U อ้างอิงกลุ่มแรก ทดสอบสองทาง |r_rb| = |1 − 2U/(n₁n₂)| [Kerby, 2014] Fisher เปรียบเทียบรอบขายเกิน/ไม่ขายเกิน 27/120 กับ 0/120 และเป็นการทดสอบเดี่ยวจึงไม่ปรับ ค่า p ปรับ Holm ทุกรายการยังต่ำกว่า .05
+
+## ตาราง 6 ผลรายการซ้ำและตกหล่นแยกตามโหมดและ D (การทดลองที่ 2)
+
+| โหมด | D | รอบ | ซ้ำเฉลี่ย | ซ้ำต่ำสุด | ซ้ำสูงสุด | ตกหล่นรวม | P95 (ms) |
+|---|---|---|---|---|---|---|---|
+| จองตรง มี G5 | 2 | 30 | 0.0 | 0 | 0 | 0 | 111.1 |
+| จองตรง มี G5 | 3 | 30 | 0.0 | 0 | 0 | 0 | 122.4 |
+| จองตรง มี G5 | 5 | 30 | 0.0 | 0 | 0 | 0 | 152.9 |
+| จองตรง ไม่มี G5 | 2 | 30 | 5.7 | 0 | 20 | 0 | 118.9 |
+| จองตรง ไม่มี G5 | 3 | 30 | 10.7 | 2 | 27 | 0 | 175.0 |
+| จองตรง ไม่มี G5 | 5 | 30 | 19.4 | 7 | 53 | 0 | 1146.6 |
+| OTA มี G5 | 2 | 30 | 0.0 | 0 | 0 | 0 | 111.7 |
+| OTA มี G5 | 3 | 30 | 0.0 | 0 | 0 | 0 | 157.7 |
+| OTA มี G5 | 5 | 30 | 0.0 | 0 | 0 | 0 | 246.0 |
+| OTA ไม่มี G5 | 2 | 30 | 100.0 | 100 | 100 | 0 | 100.3 |
+| OTA ไม่มี G5 | 3 | 30 | 200.0 | 200 | 200 | 0 | 146.2 |
+| OTA ไม่มี G5 | 5 | 30 | 400.0 | 400 | 400 | 0 | 246.0 |
+
+หมายเหตุ: duplicates = Σ(n − 1) ของแถวที่เกิดจาก booking id เดียวกัน missing = จำนวน id ที่ไม่มีแถวในฐานข้อมูล ทุกโหมดมีผลรวม missing เป็นศูนย์
+
+## การทำซ้ำ / Reproduce
+
+```bash
+python3 analyze.py   # เขียน data/stats.json ใหม่จาก data/final_*.jsonl
+```
+
+ค่า p ปรับ Holm ในตาราง 5 คำนวณจากค่า p ไม่ปรับในไฟล์เดียวกัน (ดูสคริปต์สั้นด้านล่าง)
+
+```python
+import json
+s = json.load(open('data/stats.json'))
+fam = {'L':  [s['mw_S2_S5']['lost_pct']['p'], s['round2']['direct']['mw_lost']['p'], s['round2']['ota']['mw_lost']['p']],
+       'P95':[s['mw_S2_S5']['p95']['p'],      s['round2']['direct']['mw_p95']['p'], s['round2']['ota']['mw_p95']['p']]}
+for name, ps in fam.items():
+    order = sorted(range(3), key=lambda i: ps[i]); adj = [0]*3; run = 0
+    for rank, i in enumerate(order):
+        run = max(run, min(1, (3-rank)*ps[i])); adj[i] = run
+    print(name, adj)
+```
+
+## เอกสารอ้างอิง
+
+- Holm, S. (1979). A simple sequentially rejective multiple test procedure. *Scandinavian Journal of Statistics, 6*(2), 65–70.
+- Kerby, D. S. (2014). The simple difference formula: An approach to teaching nonparametric correlation. *Comprehensive Psychology, 3*, Article 11.IT.3.1. https://doi.org/10.2466/11.IT.3.1
+- Tomczak, M., & Tomczak, E. (2014). The need to report effect size estimates revisited. An overview of some recommended measures of effect size. *Trends in Sport Sciences, 1*(21), 19–25.
